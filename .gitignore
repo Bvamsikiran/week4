@@ -1,0 +1,37 @@
+# ── Python cache ──────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ── Secrets — NEVER commit these ─────────────────────────────────────────────
+.env
+secrets.toml
+.streamlit/secrets.toml
+
+# ── Data / databases ──────────────────────────────────────────────────────────
+data/chroma_db/
+data/faiss_index/
+data/uploaded_docs/
+*.sqlite
+*.db
+
+# ── OS artifacts ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── IDEs ─────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/

@@ -1,0 +1,44 @@
+# ACD Mentor - Requirements
+# Install with: pip install -r requirements.txt
+
+# Core Streamlit
+streamlit>=1.35.0
+
+# LangChain ecosystem
+langchain>=0.2.0
+langchain-community>=0.2.0
+langchain-groq>=0.1.5
+langchain-openai>=0.1.0
+langgraph>=0.1.0
+
+# Vector Database
+chromadb>=0.5.0
+faiss-cpu>=1.8.0
+
+# Document loaders
+PyPDF2>=3.0.0
+python-pptx>=0.6.23
+unstructured>=0.14.0
+
+# Embeddings
+sentence-transformers>=3.0.0
+
+# HTTP requests (for GeeksforGeeks scraping)
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+
+# LLM Providers
+groq>=0.9.0
+openai>=1.30.0
+
+# PDF generation (for download notes)
+reportlab>=4.0.0
+fpdf2>=2.7.9
+
+# Utilities
+python-dotenv>=1.0.0
+tiktoken>=0.7.0
+numpy>=1.26.0
+
+# Mermaid rendering helper
+streamlit-mermaid>=0.3.0

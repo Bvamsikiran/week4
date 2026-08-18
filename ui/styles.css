@@ -1,0 +1,329 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACD Mentor — Custom CSS
+   Supports both Streamlit dark and light themes.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ── Reset & Base ─────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, [class*="css"] {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ── Streamlit App Container ─────────────────────────────────────────────── */
+.main .block-container {
+    padding: 1.5rem 2rem 4rem 2rem;
+    max-width: 1100px;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.acd-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem 1.75rem;
+    background: linear-gradient(135deg, #1a1f3a 0%, #0f172a 50%, #1e293b 100%);
+    border-radius: 16px;
+    margin-bottom: 1.5rem;
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+.acd-header .logo {
+    font-size: 2.4rem;
+    line-height: 1;
+}
+
+.acd-header .title-block h1 {
+    font-size: 1.65rem;
+    font-weight: 700;
+    color: #e2e8f0;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+}
+
+.acd-header .title-block p {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    margin-top: 0.2rem;
+    font-weight: 400;
+}
+
+.acd-badge {
+    margin-left: auto;
+    background: rgba(99, 102, 241, 0.18);
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    color: #a5b4fc;
+    padding: 0.3rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+/* ── Chat Bubbles ─────────────────────────────────────────────────────────── */
+.chat-bubble {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+    align-items: flex-start;
+}
+
+.chat-bubble.user {
+    flex-direction: row-reverse;
+}
+
+.chat-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.chat-avatar.user-avatar {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+}
+
+.chat-avatar.bot-avatar {
+    background: linear-gradient(135deg, #0891b2, #0e7490);
+}
+
+.chat-content {
+    max-width: 82%;
+    padding: 0.9rem 1.1rem;
+    border-radius: 14px;
+    line-height: 1.65;
+    font-size: 0.92rem;
+}
+
+.chat-content.user {
+    background: linear-gradient(135deg, #312e81, #3730a3);
+    color: #e0e7ff;
+    border-bottom-right-radius: 4px;
+    border: 1px solid rgba(99,102,241,0.3);
+}
+
+.chat-content.bot {
+    background: #1e293b;
+    color: #cbd5e1;
+    border-bottom-left-radius: 4px;
+    border: 1px solid rgba(148,163,184,0.12);
+}
+
+/* ── Response Cards ──────────────────────────────────────────────────────── */
+.response-card {
+    background: #1e293b;
+    border: 1px solid rgba(148,163,184,0.1);
+    border-radius: 14px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    transition: border-color 0.2s ease;
+}
+
+.response-card:hover {
+    border-color: rgba(99,102,241,0.3);
+}
+
+.response-card .card-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 0.85rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid rgba(148,163,184,0.12);
+}
+
+.card-title.explanation { color: #60a5fa; }
+.card-title.visual      { color: #34d399; }
+.card-title.solution    { color: #f59e0b; }
+.card-title.quiz        { color: #a78bfa; }
+.card-title.review      { color: #fb923c; }
+
+/* ── MCQ / Quiz ───────────────────────────────────────────────────────────── */
+.mcq-card {
+    background: rgba(99,102,241,0.06);
+    border: 1px solid rgba(99,102,241,0.15);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    margin-bottom: 0.85rem;
+}
+
+.mcq-card .question-text {
+    font-weight: 600;
+    color: #e2e8f0;
+    margin-bottom: 0.65rem;
+    font-size: 0.93rem;
+    line-height: 1.55;
+}
+
+.option-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    margin-bottom: 0.3rem;
+    font-size: 0.87rem;
+    color: #cbd5e1;
+    cursor: default;
+}
+
+.option-row.correct {
+    background: rgba(52,211,153,0.12);
+    border: 1px solid rgba(52,211,153,0.3);
+    color: #6ee7b7;
+    font-weight: 500;
+}
+
+.option-badge {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(148,163,184,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    color: #94a3b8;
+}
+
+.option-badge.correct { background: #059669; color: #fff; }
+
+.explanation-box {
+    background: rgba(245,158,11,0.07);
+    border-left: 3px solid #f59e0b;
+    padding: 0.6rem 0.85rem;
+    border-radius: 0 6px 6px 0;
+    font-size: 0.83rem;
+    color: #fcd34d;
+    margin-top: 0.6rem;
+    line-height: 1.55;
+}
+
+/* ── Quality Gate badge ───────────────────────────────────────────────────── */
+.quality-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.73rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+.quality-badge.good        { background: rgba(52,211,153,0.15); color: #6ee7b7; border: 1px solid rgba(52,211,153,0.3); }
+.quality-badge.acceptable  { background: rgba(245,158,11,0.15); color: #fcd34d; border: 1px solid rgba(245,158,11,0.3); }
+.quality-badge.needs_correction { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+
+/* ── Progress bar ────────────────────────────────────────────────────────── */
+.progress-bar-wrap {
+    background: rgba(148,163,184,0.1);
+    border-radius: 999px;
+    height: 6px;
+    margin: 0.3rem 0 0.75rem;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+    transition: width 0.5s ease;
+}
+
+/* ── Citation tags ────────────────────────────────────────────────────────── */
+.citation-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: rgba(14,165,233,0.1);
+    border: 1px solid rgba(14,165,233,0.25);
+    color: #7dd3fc;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.73rem;
+    font-weight: 500;
+    margin: 0.2rem 0.2rem 0.2rem 0;
+}
+
+/* ── Sidebar styling ─────────────────────────────────────────────────────── */
+[data-testid="stSidebar"] {
+    background: #0f172a !important;
+    border-right: 1px solid rgba(148,163,184,0.08) !important;
+}
+
+[data-testid="stSidebar"] .stMarkdown h3 {
+    color: #94a3b8;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+}
+
+/* ── Streamlit tab overrides ─────────────────────────────────────────────── */
+[data-testid="stTabs"] [role="tab"] {
+    font-size: 0.83rem;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    color: #94a3b8;
+}
+
+[data-testid="stTabs"] [role="tab"][aria-selected="true"] {
+    color: #a5b4fc;
+    border-bottom: 2px solid #6366f1;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────────────── */
+pre, code {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+    font-size: 0.83rem !important;
+}
+
+/* ── Input box ────────────────────────────────────────────────────────────── */
+[data-testid="stChatInput"] textarea {
+    border-radius: 12px !important;
+    font-size: 0.93rem !important;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,0.35); }
+
+/* ── Pill tags ────────────────────────────────────────────────────────────── */
+.pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.pill.unit-1 { background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25); }
+.pill.unit-2 { background: rgba(14,165,233,0.15); color: #7dd3fc; border: 1px solid rgba(14,165,233,0.25); }
+.pill.unit-3 { background: rgba(52,211,153,0.15); color: #6ee7b7; border: 1px solid rgba(52,211,153,0.25); }
+.pill.unit-4 { background: rgba(245,158,11,0.15); color: #fcd34d; border: 1px solid rgba(245,158,11,0.25); }
+.pill.unit-5 { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.25); }
