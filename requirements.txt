@@ -49,3 +49,6 @@ rank-bm25>=0.2.2
 
 # Web search fallback
 duckduckgo-search>=6.0.0
+
+# Fix for Streamlit Cloud transformers bug
+torchvision>=0.16.0
