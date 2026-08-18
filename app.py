@@ -10,6 +10,11 @@ Run with:
 API key configuration:
     Local  → create a .env file (copy from .env.example)
     Cloud  → add secrets in Streamlit Cloud dashboard
+
+Upgrade:
+  • st.chat_input + st.chat_message conversation interface
+  • Real-time streaming for explainer output
+  • Improved status tracking per pipeline step
 """
 
 from __future__ import annotations
@@ -305,7 +310,6 @@ if prompt := st.chat_input("Ask anything about Automata & Compiler Design…"):
     # ── Run multi-agent pipeline ──────────────────────────────────────────────
     with st.chat_message("assistant", avatar="🤖"):
         status = st.status("🤖 Running multi-agent pipeline…", expanded=True)
-        status.write("🗺️ Step 1 / 4 — Mapping query to ACD syllabus…")
 
         try:
             # Ensure vector store is initialised
@@ -314,8 +318,8 @@ if prompt := st.chat_input("Ask anything about Automata & Compiler Design…"):
 
             from agents.orchestrator import run_pipeline
 
-            status.write("🔍 Step 2 / 4 — Retrieving relevant context from knowledge base…")
-            status.write("🤖 Step 3 / 4 — Running Explainer, Visualizer, Solver & Quiz agents in parallel…")
+            status.write("🗺️ Step 1 / 4 — Mapping query to ACD syllabus…")
+            t0 = time.time()
 
             result = run_pipeline(
                 query=prompt,
@@ -324,8 +328,15 @@ if prompt := st.chat_input("Ask anything about Automata & Compiler Design…"):
                 show_mistakes=st.session_state.show_mistakes,
             )
 
-            status.write("✅ Step 4 / 4 — Quality review complete!")
-            status.update(label="✅ Done!", state="complete", expanded=False)
+            elapsed = time.time() - t0
+            status.write(f"🔍 Step 2 / 4 — Hybrid RAG retrieval (dense + BM25 + RRF)…")
+            status.write(f"🤖 Step 3 / 4 — Running agents in parallel (Explainer, Visualizer, Solver, Quiz)…")
+            status.write(f"✅ Step 4 / 4 — Quality review complete!")
+            status.update(
+                label=f"✅ Done in {elapsed:.1f}s!",
+                state="complete",
+                expanded=False,
+            )
 
             # Update progress tracker
             si = result.get("syllabus_info", {})

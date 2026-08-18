@@ -9,38 +9,48 @@ Generates:
   • Explanations for all answers
 
 Returns a structured dict for clean UI rendering.
+
+Upgrade:
+  • Pydantic structured output via .with_structured_output()
+  • No more fragile regex/JSON parsing
 """
 
 from __future__ import annotations
 import json
 import re
+from typing import Dict, List, Literal
+from pydantic import BaseModel, Field
 from langchain_core.messages import HumanMessage, SystemMessage
 from utils.llm_factory import get_llm
+
+
+# ── Pydantic schemas ─────────────────────────────────────────────────────────
+class MCQ(BaseModel):
+    """A single multiple-choice question."""
+    q: str = Field(description="The question text")
+    options: Dict[str, str] = Field(description="Options A through D")
+    answer: str = Field(description="Correct option letter (A/B/C/D)")
+    explanation: str = Field(description="Why the answer is correct")
+
+
+class ShortAnswer(BaseModel):
+    """A single short-answer question."""
+    q: str = Field(description="The question text")
+    answer: str = Field(description="Model answer")
+    hint: str = Field(default="", description="A helpful hint for students")
+
+
+class QuizOutput(BaseModel):
+    """Full quiz output from the Quiz Master agent."""
+    mcqs: List[MCQ] = Field(description="List of 4 multiple-choice questions")
+    short_answers: List[ShortAnswer] = Field(description="List of 2 short-answer questions")
+    topic: str = Field(description="Topic name")
+    difficulty: Literal["beginner", "intermediate", "advanced"] = Field(default="intermediate")
+
 
 # ── System prompt ─────────────────────────────────────────────────────────────
 QUIZ_MASTER_PROMPT = """You are the Quiz Master Agent for an Automata and Compiler Design (ACD) course.
 Your job is to generate high-quality exam-style questions that test REAL understanding, not memorisation.
-
-Generate a quiz in this EXACT JSON schema (output only JSON, no markdown fences):
-{
-  "mcqs": [
-    {
-      "q": "Question text",
-      "options": {"A": "...", "B": "...", "C": "...", "D": "..."},
-      "answer": "B",
-      "explanation": "Why B is correct and others are not."
-    }
-  ],
-  "short_answers": [
-    {
-      "q": "Question text",
-      "answer": "Model answer",
-      "hint": "A helpful hint for students"
-    }
-  ],
-  "topic": "Topic name",
-  "difficulty": "beginner | intermediate | advanced"
-}
 
 Rules:
 - MCQs: Generate exactly 4 MCQs. All 4 options must be plausible (no joke options).
@@ -73,20 +83,54 @@ Student Question: {query}
 
 Generate a quiz for this topic."""
 
+    # Try structured output first
+    try:
+        structured_llm = llm.with_structured_output(QuizOutput)
+        messages = [
+            SystemMessage(content=QUIZ_MASTER_PROMPT),
+            HumanMessage(content=user_msg),
+        ]
+        result: QuizOutput = structured_llm.invoke(messages)
+        return result.model_dump()
+    except (NotImplementedError, AttributeError, Exception):
+        pass
+
+    # Fallback: raw invoke + JSON parse
+    fallback_prompt = QUIZ_MASTER_PROMPT + """
+
+Generate a quiz in this EXACT JSON schema (output only JSON, no markdown fences):
+{
+  "mcqs": [
+    {
+      "q": "Question text",
+      "options": {"A": "...", "B": "...", "C": "...", "D": "..."},
+      "answer": "B",
+      "explanation": "Why B is correct and others are not."
+    }
+  ],
+  "short_answers": [
+    {
+      "q": "Question text",
+      "answer": "Model answer",
+      "hint": "A helpful hint for students"
+    }
+  ],
+  "topic": "Topic name",
+  "difficulty": "beginner | intermediate | advanced"
+}"""
+
     messages = [
-        SystemMessage(content=QUIZ_MASTER_PROMPT),
+        SystemMessage(content=fallback_prompt),
         HumanMessage(content=user_msg),
     ]
     response = llm.invoke(messages)
     raw = response.content.strip()
 
     try:
-        # Strip markdown fences if present
         raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.MULTILINE)
         raw = re.sub(r"```\s*$", "", raw, flags=re.MULTILINE)
         return json.loads(raw.strip())
     except json.JSONDecodeError:
-        # Fallback: return the raw text wrapped
         return {
             "mcqs": [],
             "short_answers": [{"q": "See raw output below", "answer": raw, "hint": ""}],

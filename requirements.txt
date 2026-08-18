@@ -39,6 +39,13 @@ fpdf2>=2.7.9
 python-dotenv>=1.0.0
 tiktoken>=0.7.0
 numpy>=1.26.0
+pydantic>=2.0.0
 
 # Mermaid rendering helper
 streamlit-mermaid>=0.3.0
+
+# BM25 sparse retrieval (hybrid RAG)
+rank-bm25>=0.2.2
+
+# Web search fallback
+duckduckgo-search>=6.0.0

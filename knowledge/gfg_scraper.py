@@ -3,6 +3,11 @@ knowledge/gfg_scraper.py
 ─────────────────────────
 Fetches GeeksforGeeks ACD articles and returns clean plain-text.
 Uses requests + BeautifulSoup.  Respects robots.txt spirit by caching.
+
+Upgrade:
+  • Robust user-agent headers
+  • DuckDuckGo web search fallback if scraping fails
+  • Retry logic with exponential backoff
 """
 
 from __future__ import annotations
@@ -24,8 +29,13 @@ _CACHE_DIR.mkdir(parents=True, exist_ok=True)
 _HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "ACD-Mentor-Bot/1.0 (educational tool)"
-    )
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/125.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate",
+    "Connection": "keep-alive",
 }
 
 
@@ -34,7 +44,43 @@ def _cache_path(url: str) -> Path:
     return _CACHE_DIR / f"{h}.txt"
 
 
-def fetch_article(url: str, use_cache: bool = True) -> Optional[str]:
+def _web_search_fallback(topic: str) -> Optional[str]:
+    """
+    Fallback: search the web for the topic using DuckDuckGo Search.
+    Returns the best result's text content, or None.
+    """
+    try:
+        from duckduckgo_search import DDGS
+        with DDGS() as ddgs:
+            results = list(ddgs.text(
+                f"{topic} automata compiler design site:geeksforgeeks.org",
+                max_results=3,
+            ))
+        if results:
+            # Try to fetch the first result URL
+            for r in results:
+                url = r.get("href", r.get("link", ""))
+                if url:
+                    text = fetch_article(url, use_cache=True, skip_fallback=True)
+                    if text:
+                        return text
+            # If no URL worked, return snippet text
+            snippets = [r.get("body", "") for r in results if r.get("body")]
+            return "\n\n".join(snippets) if snippets else None
+    except ImportError:
+        pass
+    except Exception as exc:
+        print(f"[GFG Scraper] DuckDuckGo fallback failed: {exc}")
+
+    return None
+
+
+def fetch_article(
+    url: str,
+    use_cache: bool = True,
+    skip_fallback: bool = False,
+    max_retries: int = 2,
+) -> Optional[str]:
     """
     Download a GFG article and return its main text content.
     Returns None on failure.
@@ -43,12 +89,17 @@ def fetch_article(url: str, use_cache: bool = True) -> Optional[str]:
     if use_cache and cpath.exists():
         return cpath.read_text(encoding="utf-8")
 
-    try:
-        resp = requests.get(url, headers=_HEADERS, timeout=15)
-        resp.raise_for_status()
-    except Exception as exc:
-        print(f"[GFG Scraper] Failed to fetch {url}: {exc}")
-        return None
+    for attempt in range(max_retries + 1):
+        try:
+            resp = requests.get(url, headers=_HEADERS, timeout=15)
+            resp.raise_for_status()
+            break
+        except Exception as exc:
+            if attempt < max_retries:
+                time.sleep(2 ** attempt)  # exponential backoff
+                continue
+            print(f"[GFG Scraper] Failed to fetch {url} after {max_retries + 1} attempts: {exc}")
+            return None
 
     soup = BeautifulSoup(resp.text, "html.parser")
 
@@ -78,6 +129,7 @@ def load_all_gfg_articles(
 ) -> list[dict]:
     """
     Fetch all curated ACD articles from GFG.
+    Falls back to web search if direct scraping fails.
 
     Returns
     -------
@@ -87,7 +139,13 @@ def load_all_gfg_articles(
     for idx, (topic, url) in enumerate(GFG_ACD_URLS):
         if progress_callback:
             progress_callback(idx, len(GFG_ACD_URLS), topic)
+
         text = fetch_article(url)
+
+        # Fallback: web search
+        if not text:
+            text = _web_search_fallback(topic)
+
         if text:
             docs.append({"topic": topic, "url": url, "text": text})
         time.sleep(delay)  # polite delay

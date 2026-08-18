@@ -5,6 +5,9 @@ Chunking + embedding pipeline.
 Supports:
   • Local embeddings via sentence-transformers (free, no API needed)
   • OpenAI text-embedding-3-small (requires OPENAI_API_KEY)
+
+Upgrade:
+  • Wrapped with @st.cache_resource to avoid reloading weights on reruns.
 """
 
 from __future__ import annotations
@@ -12,9 +15,12 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from utils.config import EMBEDDING_PROVIDER, OPENAI_API_KEY
 
+import streamlit as st
 
+
+@st.cache_resource(show_spinner="Loading embedding model…")
 def get_embeddings():
-    """Return a LangChain embeddings instance based on config."""
+    """Return a LangChain embeddings instance based on config (cached)."""
     if EMBEDDING_PROVIDER == "openai":
         from langchain_openai import OpenAIEmbeddings
         return OpenAIEmbeddings(

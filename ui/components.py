@@ -9,6 +9,10 @@ Renders:
   • Quality gate badge
   • Progress tracker panel
   • Citation tags
+
+Upgrade:
+  • Interactive quiz with st.radio + instant feedback
+  • Mermaid sanitization before rendering
 """
 
 from __future__ import annotations
@@ -119,6 +123,14 @@ def render_visual(visual: dict):
         st.caption(f"📊 {caption}")
 
     if vtype == "mermaid":
+        # Sanitize mermaid before rendering
+        try:
+            from agents.visualizer import clean_mermaid_code
+            content = clean_mermaid_code(content)
+        except (ImportError, ValueError):
+            vtype = "ascii"  # fall through to ascii rendering
+
+    if vtype == "mermaid":
         # Try streamlit-mermaid, fallback to HTML
         try:
             from streamlit_mermaid import st_mermaid  # type: ignore
@@ -133,6 +145,8 @@ def render_visual(visual: dict):
             <script>mermaid.initialize({{startOnLoad:true, theme:'dark'}});</script>
             """
             st.components.v1.html(mermaid_html, height=420, scrolling=True)
+        except Exception:
+            st.code(content, language="")
 
     elif vtype == "table":
         st.markdown(content)
@@ -141,7 +155,7 @@ def render_visual(visual: dict):
         st.code(content, language="")
 
 
-# ── MCQ Renderer ──────────────────────────────────────────────────────────────
+# ── Interactive MCQ Renderer ──────────────────────────────────────────────────
 def render_quiz(quiz: dict):
     if not quiz:
         st.info("No quiz generated.")
@@ -153,29 +167,46 @@ def render_quiz(quiz: dict):
     if mcqs:
         st.markdown("#### 📝 Multiple Choice Questions")
         for i, mcq in enumerate(mcqs, 1):
-            with st.expander(f"Q{i}. {mcq.get('q', '')}", expanded=(i == 1)):
-                options = mcq.get("options", {})
-                answer = mcq.get("answer", "")
-                explanation = mcq.get("explanation", "")
+            question = mcq.get("q", f"Question {i}")
+            options = mcq.get("options", {})
+            correct_key = mcq.get("answer", "")
+            explanation = mcq.get("explanation", "")
 
-                for opt_key, opt_text in options.items():
-                    is_correct = opt_key == answer
-                    badge_class = "correct" if is_correct else ""
-                    row_class = "correct" if is_correct else ""
-                    st.markdown(
-                        f'<div class="option-row {row_class}">'
-                        f'<span class="option-badge {badge_class}">{opt_key}</span>'
-                        f'{opt_text}'
-                        f'{"  ✓" if is_correct else ""}'
-                        f'</div>',
-                        unsafe_allow_html=True
-                    )
+            with st.expander(f"Q{i}. {question}", expanded=(i == 1)):
+                if not options:
+                    st.warning("No options available.")
+                    continue
 
-                if explanation:
-                    st.markdown(
-                        f'<div class="explanation-box">💡 {explanation}</div>',
-                        unsafe_allow_html=True
-                    )
+                # Build radio options
+                option_labels = [f"{k}: {v}" for k, v in options.items()]
+                option_keys = list(options.keys())
+
+                # Unique key per question to avoid Streamlit state conflicts
+                selected = st.radio(
+                    "Select your answer:",
+                    option_labels,
+                    index=None,
+                    key=f"quiz_mcq_{id(quiz)}_{i}",
+                    label_visibility="collapsed",
+                )
+
+                if selected is not None:
+                    # Extract selected key (A/B/C/D)
+                    selected_key = selected.split(":")[0].strip()
+
+                    if selected_key == correct_key:
+                        st.success(f"✅ Correct! **{correct_key}** is right.")
+                    else:
+                        st.error(
+                            f"❌ Incorrect. You chose **{selected_key}**, "
+                            f"but the correct answer is **{correct_key}: {options.get(correct_key, '')}**"
+                        )
+
+                    if explanation:
+                        st.markdown(
+                            f'<div class="explanation-box">💡 {explanation}</div>',
+                            unsafe_allow_html=True
+                        )
 
     if short_answers:
         st.markdown("#### ✍️ Short Answer Questions")
@@ -184,7 +215,18 @@ def render_quiz(quiz: dict):
                 hint = sa.get("hint", "")
                 if hint:
                     st.markdown(f"💭 **Hint:** {hint}")
-                st.markdown(f"✅ **Model Answer:** {sa.get('answer', '')}")
+
+                # Optional: text input for student to try
+                student_answer = st.text_area(
+                    "Your answer:",
+                    key=f"quiz_sa_{id(quiz)}_{i}",
+                    height=80,
+                    label_visibility="collapsed",
+                    placeholder="Type your answer here (optional)...",
+                )
+
+                if st.button(f"Show Answer", key=f"quiz_sa_btn_{id(quiz)}_{i}"):
+                    st.markdown(f"✅ **Model Answer:** {sa.get('answer', '')}")
 
 
 # ── Progress Tracker Panel ────────────────────────────────────────────────────
