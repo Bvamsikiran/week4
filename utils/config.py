@@ -33,7 +33,7 @@ except Exception:
 GROQ_API_KEY: str = _get("GROQ_API_KEY", "")
 OPENAI_API_KEY: str = _get("OPENAI_API_KEY", "")
 LLM_PROVIDER: str = _get("LLM_PROVIDER", "groq")   # "groq" | "openai"
-GROQ_MODEL: str = _get("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_MODEL: str = _get("GROQ_MODEL", "qwen/qwen3.6-27b")
 OPENAI_MODEL: str = _get("OPENAI_MODEL", "gpt-4o-mini")
 
 # ── Embeddings ────────────────────────────────────────────────────────────────
