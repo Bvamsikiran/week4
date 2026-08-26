@@ -1,9 +1,33 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   ACD Mentor — Custom CSS
-   Supports both Streamlit dark and light themes.
+   ACD Mentor — Custom CSS  (v2 — enhanced visuals & interactions)
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ── Animations ──────────────────────────────────────────────────────────── */
+@keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes pulseGlow {
+    0%, 100% { filter: drop-shadow(0 0 4px rgba(99,102,241,0.4)); }
+    50%       { filter: drop-shadow(0 0 14px rgba(99,102,241,0.85)); }
+}
+
+@keyframes typingBounce {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+    40%           { transform: scale(1.0); opacity: 1.0; }
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
 
 /* ── Reset & Base ─────────────────────────────────────────────────────────── */
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -29,19 +53,34 @@ html, body, [class*="css"] {
     background: linear-gradient(135deg, #1a1f3a 0%, #0f172a 50%, #1e293b 100%);
     border-radius: 16px;
     margin-bottom: 1.5rem;
-    border: 1px solid rgba(99, 102, 241, 0.25);
-    box-shadow: 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    box-shadow: 0 4px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
+    animation: fadeSlideIn 0.5s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.acd-header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(99,102,241,0.6), rgba(139,92,246,0.6), transparent);
 }
 
 .acd-header .logo {
     font-size: 2.4rem;
     line-height: 1;
+    animation: pulseGlow 3s ease-in-out infinite;
 }
 
 .acd-header .title-block h1 {
     font-size: 1.65rem;
     font-weight: 700;
-    color: #e2e8f0;
+    background: linear-gradient(135deg, #e2e8f0, #a5b4fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
     letter-spacing: -0.02em;
     line-height: 1.2;
 }
@@ -292,6 +331,10 @@ html, body, [class*="css"] {
     border-bottom: 2px solid #6366f1;
 }
 
+[data-testid="stTabs"] [role="tab"]:hover {
+    color: #cbd5e1;
+}
+
 /* ── Code blocks ─────────────────────────────────────────────────────────── */
 pre, code {
     font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
@@ -302,6 +345,11 @@ pre, code {
 [data-testid="stChatInput"] textarea {
     border-radius: 12px !important;
     font-size: 0.93rem !important;
+    transition: box-shadow 0.2s ease !important;
+}
+
+[data-testid="stChatInput"] textarea:focus {
+    box-shadow: 0 0 0 2px rgba(99,102,241,0.35) !important;
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────────────────── */
@@ -320,10 +368,184 @@ pre, code {
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
+    transition: transform 0.15s ease;
 }
+
+.pill:hover { transform: scale(1.05); }
 
 .pill.unit-1 { background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25); }
 .pill.unit-2 { background: rgba(14,165,233,0.15); color: #7dd3fc; border: 1px solid rgba(14,165,233,0.25); }
 .pill.unit-3 { background: rgba(52,211,153,0.15); color: #6ee7b7; border: 1px solid rgba(52,211,153,0.25); }
 .pill.unit-4 { background: rgba(245,158,11,0.15); color: #fcd34d; border: 1px solid rgba(245,158,11,0.25); }
 .pill.unit-5 { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.25); }
+
+/* ── Chat bubbles: animation ─────────────────────────────────────────────── */
+.chat-bubble { animation: fadeSlideIn 0.35s ease; }
+
+/* ── Response card hover ─────────────────────────────────────────────────── */
+.response-card:hover {
+    border-color: rgba(99,102,241,0.35);
+    box-shadow: 0 4px 20px rgba(99,102,241,0.08);
+}
+
+/* ── Citation tag hover ──────────────────────────────────────────────────── */
+.citation-tag {
+    transition: background 0.2s ease, transform 0.15s ease;
+    cursor: default;
+}
+.citation-tag:hover {
+    background: rgba(14,165,233,0.18);
+    transform: translateY(-1px);
+}
+
+/* ── Sidebar button polish ───────────────────────────────────────────────── */
+[data-testid="stSidebar"] .stButton > button {
+    transition: all 0.2s ease !important;
+    border-radius: 8px !important;
+}
+[data-testid="stSidebar"] .stButton > button:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+}
+
+/* ── Typing Indicator ────────────────────────────────────────────────────── */
+.typing-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.75rem 1rem;
+    background: #1e293b;
+    border: 1px solid rgba(148,163,184,0.12);
+    border-radius: 14px;
+    width: fit-content;
+}
+
+.typing-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #6366f1;
+    animation: typingBounce 1.4s infinite ease-in-out;
+}
+
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* ── Pipeline step indicator ─────────────────────────────────────────────── */
+.pipeline-step {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    color: #64748b;
+    margin-bottom: 0.25rem;
+    transition: all 0.25s ease;
+}
+
+.pipeline-step.active {
+    background: rgba(99,102,241,0.08);
+    color: #a5b4fc;
+    border: 1px solid rgba(99,102,241,0.2);
+}
+
+.pipeline-step.done { color: #6ee7b7; }
+
+.step-spinner {
+    width: 14px; height: 14px;
+    border: 2px solid rgba(99,102,241,0.2);
+    border-top-color: #6366f1;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+}
+
+/* ── Shortcut bar ────────────────────────────────────────────────────────── */
+.shortcut-bar {
+    display: flex;
+    gap: 1.25rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 0.5rem;
+    padding: 0.45rem 1rem;
+    background: rgba(15,23,42,0.6);
+    border: 1px solid rgba(148,163,184,0.08);
+    border-radius: 10px;
+    font-size: 0.72rem;
+    color: #475569;
+}
+
+.shortcut-item { display: flex; align-items: center; gap: 0.3rem; }
+
+.kbd {
+    background: rgba(148,163,184,0.08);
+    border: 1px solid rgba(148,163,184,0.18);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 0.1rem 0.35rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    color: #94a3b8;
+}
+
+/* ── Prompt chip (welcome screen) ────────────────────────────────────────── */
+.prompt-chip {
+    display: inline-block;
+    background: #1e293b;
+    border: 1px solid rgba(99,102,241,0.25);
+    padding: 0.45rem 0.9rem;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    color: #cbd5e1;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: 'JetBrains Mono', monospace;
+    user-select: none;
+}
+
+.prompt-chip:hover {
+    background: rgba(99,102,241,0.12);
+    border-color: rgba(99,102,241,0.5);
+    color: #a5b4fc;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(99,102,241,0.2);
+}
+
+/* ── Elapsed time chip ───────────────────────────────────────────────────── */
+.elapsed-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: rgba(52,211,153,0.08);
+    border: 1px solid rgba(52,211,153,0.2);
+    color: #6ee7b7;
+    padding: 0.15rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.73rem;
+    font-weight: 500;
+}
+
+/* ── Mode chip (Fast / Full) ─────────────────────────────────────────────── */
+.mode-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.55rem;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+}
+
+.mode-chip.fast {
+    background: rgba(34,197,94,0.1);
+    border: 1px solid rgba(34,197,94,0.25);
+    color: #86efac;
+}
+
+.mode-chip.full {
+    background: rgba(99,102,241,0.1);
+    border: 1px solid rgba(99,102,241,0.25);
+    color: #a5b4fc;
+}

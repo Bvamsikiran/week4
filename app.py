@@ -66,6 +66,8 @@ def _init_state():
         "use_only_user_docs": False,
         "selected_unit": "Auto-detect",
         "last_result": None,
+        "fast_mode": False,       # skip visualizer + quiz + critic for speed
+        "pending_prompt": None,   # prompt chip click passthrough
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -234,6 +236,27 @@ with st.sidebar:
 
     st.divider()
 
+    # ── Speed / Pipeline ──────────────────────────────────────────────────────
+    st.markdown("### ⚡ Pipeline Speed")
+    fast_mode = st.toggle(
+        "⚡ Fast Mode (explanation only)",
+        value=st.session_state.fast_mode,
+        help="Skips diagram, step-by-step, quiz and critic. Cuts response time by ~60%.",
+    )
+    st.session_state.fast_mode = fast_mode
+    if fast_mode:
+        st.caption(
+            '<span class="mode-chip fast">⚡ Fast</span> Diagram / Quiz / Critic skipped',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.caption(
+            '<span class="mode-chip full">✦ Full</span> All agents active',
+            unsafe_allow_html=True,
+        )
+
+
+
     # ── Utilities ─────────────────────────────────────────────────────────────
     st.markdown("### 🛠️ Tools")
     col_a, col_b = st.columns(2)
@@ -271,23 +294,108 @@ with st.sidebar:
 render_header()
 
 # ── Welcome screen ────────────────────────────────────────────────────────────
+EXAMPLE_PROMPTS = [
+    "Convert (a|b)*abb from NFA to DFA",
+    "Explain LL(1) parsing with a table",
+    "What is peephole optimization?",
+    "Derive FIRST and FOLLOW for a grammar",
+    "Explain shift-reduce parsing conflicts",
+]
+
 if not st.session_state.messages:
-    st.markdown("""
+    chips_html = "".join(
+        f'<span class="prompt-chip" onclick="navigator.clipboard.writeText(\'{p.replace(chr(39), chr(92)+chr(39))}\').then(()=>{{}})">{p}</span>'
+        for p in EXAMPLE_PROMPTS
+    )
+    st.markdown(f"""
     <div style="text-align:center;padding:3rem 1rem 2rem;color:#64748b;">
-        <div style="font-size:3.5rem;margin-bottom:1rem;">⚙️</div>
+        <div style="font-size:3.5rem;margin-bottom:1rem;filter:drop-shadow(0 0 12px rgba(99,102,241,0.5));">⚙️</div>
         <h3 style="color:#94a3b8;font-weight:500;margin-bottom:0.5rem;">Welcome to ACD Mentor!</h3>
         <p style="font-size:0.9rem;max-width:540px;margin:0 auto;line-height:1.75;color:#64748b;">
-            Your AI-powered tutor for <strong style="color:#a5b4fc;">Automata Theory</strong> and 
+            Your AI-powered tutor for <strong style="color:#a5b4fc;">Automata Theory</strong> and
             <strong style="color:#7dd3fc;">Compiler Design</strong>.<br>
-            Upload your notes in the sidebar, then ask any question below.
+            Click a prompt below to copy it, then paste it in the chat.
         </p>
         <div style="margin-top:1.75rem;display:flex;justify-content:center;gap:0.75rem;flex-wrap:wrap;">
-            <code style="background:#1e293b;border:1px solid #334155;padding:0.45rem 0.9rem;border-radius:8px;font-size:0.82rem;color:#cbd5e1;">Convert (a|b)*abb from NFA to DFA</code>
-            <code style="background:#1e293b;border:1px solid #334155;padding:0.45rem 0.9rem;border-radius:8px;font-size:0.82rem;color:#cbd5e1;">Explain LL(1) parsing with a table</code>
-            <code style="background:#1e293b;border:1px solid #334155;padding:0.45rem 0.9rem;border-radius:8px;font-size:0.82rem;color:#cbd5e1;">What is peephole optimization?</code>
+            {chips_html}
         </div>
     </div>
+    <div class="shortcut-bar">
+        <span class="shortcut-item">
+            <span class="kbd">↑</span> / <span class="kbd">↓</span> previous messages
+        </span>
+        <span class="shortcut-item">
+            <span class="kbd">Ctrl</span>+<span class="kbd">Enter</span> submit
+        </span>
+        <span class="shortcut-item">
+            <span class="kbd">Esc</span> clear input
+        </span>
+    </div>
     """, unsafe_allow_html=True)
+
+# ── Keyboard shortcut JS injection ────────────────────────────────────────────
+st.components.v1.html("""
+<script>
+(function(){
+  function getInput(){
+    return document.querySelector('[data-testid="stChatInput"] textarea');
+  }
+  var history = [];
+  var histIdx = -1;
+
+  document.addEventListener('keydown', function(e){
+    var inp = getInput();
+    if(!inp) return;
+
+    // Ctrl+Enter — submit
+    if(e.ctrlKey && e.key === 'Enter'){
+      e.preventDefault();
+      var btn = document.querySelector('[data-testid="stChatInput"] button');
+      if(btn) btn.click();
+      return;
+    }
+
+    // Esc — clear input
+    if(e.key === 'Escape' && document.activeElement === inp){
+      e.preventDefault();
+      var nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value').set;
+      nativeSetter.call(inp,'');
+      inp.dispatchEvent(new Event('input', {bubbles:true}));
+      histIdx = -1;
+      return;
+    }
+
+    // Arrow Up / Down — navigate history
+    if(document.activeElement === inp){
+      if(e.key === 'ArrowUp'){
+        var userMsgs = Array.from(document.querySelectorAll('[data-testid="stChatMessage"]'))
+          .filter(m => m.querySelector('[aria-label="user avatar"]'))
+          .map(m => m.querySelector('p') ? m.querySelector('p').innerText : '');
+        if(userMsgs.length && histIdx < userMsgs.length - 1){
+          histIdx++;
+          var val = userMsgs[userMsgs.length - 1 - histIdx];
+          var nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value').set;
+          nativeSetter.call(inp, val);
+          inp.dispatchEvent(new Event('input', {bubbles:true}));
+          setTimeout(()=>{ inp.setSelectionRange(val.length,val.length); },0);
+          e.preventDefault();
+        }
+      } else if(e.key === 'ArrowDown' && histIdx > 0){
+        histIdx--;
+        var userMsgs2 = Array.from(document.querySelectorAll('[data-testid="stChatMessage"]'))
+          .filter(m => m.querySelector('[aria-label="user avatar"]'))
+          .map(m => m.querySelector('p') ? m.querySelector('p').innerText : '');
+        var val2 = userMsgs2[userMsgs2.length - 1 - histIdx] || '';
+        var nativeSetter2 = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value').set;
+        nativeSetter2.call(inp, val2);
+        inp.dispatchEvent(new Event('input', {bubbles:true}));
+        e.preventDefault();
+      }
+    }
+  });
+})();
+</script>
+""", height=0)
 
 # ── Render persisted chat history ─────────────────────────────────────────────
 for msg in st.session_state.messages:
@@ -307,18 +415,43 @@ if prompt := st.chat_input("Ask anything about Automata & Compiler Design…"):
     with st.chat_message("user", avatar="🎓"):
         st.markdown(prompt)
 
+    # ── Determine pipeline flags from fast_mode ───────────────────────────────
+    fast = st.session_state.fast_mode
+    run_viz    = not fast
+    run_solver = not fast
+    run_quiz   = not fast
+    run_critic = not fast
+
+    if fast:
+        steps = [
+            ("🗺️", "Mapping query to ACD syllabus"),
+            ("🔍", "Hybrid RAG retrieval"),
+            ("🤖", "Explainer agent (fast mode)"),
+        ]
+    else:
+        steps = [
+            ("🗺️", "Mapping query to ACD syllabus"),
+            ("🔍", "Hybrid RAG retrieval (dense + BM25 + RRF)"),
+            ("🤖", "Running agents in parallel — Explainer, Visualizer, Solver, Quiz"),
+            ("✅", "Quality review (Critic)"),
+        ]
+
     # ── Run multi-agent pipeline ──────────────────────────────────────────────
     with st.chat_message("assistant", avatar="🤖"):
-        status = st.status("🤖 Running multi-agent pipeline…", expanded=True)
+        mode_label = "⚡ Fast Mode" if fast else "✦ Full Pipeline"
+        status = st.status(f"🤖 {mode_label} — processing…", expanded=True)
+
+        # Render pipeline steps in status
+        for emoji, label in steps:
+            status.write(f"{emoji} {label}…")
 
         try:
-            # Ensure vector store is initialised
+            # Ensure vector store is initialised (cached after first run)
             from rag.vector_store import build_or_load
             build_or_load()
 
             from agents.orchestrator import run_pipeline
 
-            status.write("🗺️ Step 1 / 4 — Mapping query to ACD syllabus…")
             t0 = time.time()
 
             result = run_pipeline(
@@ -326,12 +459,13 @@ if prompt := st.chat_input("Ask anything about Automata & Compiler Design…"):
                 use_only_user_docs=st.session_state.use_only_user_docs,
                 eli15=st.session_state.eli15,
                 show_mistakes=st.session_state.show_mistakes,
+                run_visualizer=run_viz,
+                run_solver=run_solver,
+                run_quiz=run_quiz,
+                run_critic=run_critic,
             )
 
             elapsed = time.time() - t0
-            status.write(f"🔍 Step 2 / 4 — Hybrid RAG retrieval (dense + BM25 + RRF)…")
-            status.write(f"🤖 Step 3 / 4 — Running agents in parallel (Explainer, Visualizer, Solver, Quiz)…")
-            status.write(f"✅ Step 4 / 4 — Quality review complete!")
             status.update(
                 label=f"✅ Done in {elapsed:.1f}s!",
                 state="complete",
@@ -342,6 +476,14 @@ if prompt := st.chat_input("Ask anything about Automata & Compiler Design…"):
             si = result.get("syllabus_info", {})
             if si.get("unit") and si.get("topic"):
                 mark_topic(si["unit"], si["topic"])
+
+            # Show elapsed chip before result
+            st.markdown(
+                f'<span class="elapsed-chip">⏱ {elapsed:.1f}s</span>'
+                + (f' <span class="mode-chip fast">⚡ Fast</span>' if fast else
+                   f' <span class="mode-chip full">✦ Full</span>'),
+                unsafe_allow_html=True,
+            )
 
             # Render result
             render_result(result)
@@ -365,3 +507,4 @@ if prompt := st.chat_input("Ask anything about Automata & Compiler Design…"):
                 "content": err_msg,
                 "result": None,
             })
+
