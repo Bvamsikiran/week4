@@ -1,8 +1,17 @@
 """
-app.py — ACD Mentor
-════════════════════
+app.py — ACD Mentor  (v2 — Extended Multi-Agent)
+══════════════════════════════════════════════════
 Main Streamlit entry point for the multi-agent RAG-powered
 Automata and Compiler Design student assistant.
+
+New in v2:
+  • Mem0 memory agent (per-session persistence)
+  • Voiceflow voice agent (optional)
+  • Multi-format file ingestion (.md, .docx, .xlsx, .csv, .pdf)
+  • Book knowledge source (separate ChromaDB collection)
+  • Deep space black theme
+  • Memory context indicator + voice response block
+  • Ingestion results display
 
 Run with:
     streamlit run app.py
@@ -10,17 +19,13 @@ Run with:
 API key configuration:
     Local  → create a .env file (copy from .env.example)
     Cloud  → add secrets in Streamlit Cloud dashboard
-
-Upgrade:
-  • st.chat_input + st.chat_message conversation interface
-  • Real-time streaming for explainer output
-  • Improved status tracking per pipeline step
 """
 
 from __future__ import annotations
 import os
 import sys
 import time
+import uuid
 from pathlib import Path
 
 import streamlit as st
@@ -33,17 +38,19 @@ st.set_page_config(
     initial_sidebar_state="expanded",
     menu_items={
         "Get Help": "https://github.com/",
-        "About": "ACD Mentor — Multi-Agent RAG for Automata & Compiler Design",
+        "About": "ACD Mentor v2 — Multi-Agent RAG · Memory · Voice · Automata & Compiler Design",
     },
 )
 
-# ── Local imports (add project root to sys.path) ──────────────────────────────
+# ── Local imports ─────────────────────────────────────────────────────────────
 sys.path.insert(0, str(Path(__file__).parent))
 
 from ui.components import (
     load_css, render_header, render_bot_intro,
     render_citations, render_quality_badge,
     render_visual, render_quiz, render_progress_panel,
+    render_memory_indicator, render_voice_response,
+    render_ingestion_results,
 )
 from utils.config import has_valid_api_key, LLM_PROVIDER, active_model, ENABLE_WEB_KNOWLEDGE
 from utils.progress_tracker import mark_topic, reset_progress, UNIT_MAP
@@ -58,16 +65,19 @@ load_css()
 # ══════════════════════════════════════════════════════════════════════════════
 def _init_state():
     defaults = {
-        "messages": [],           # list of {"role": str, "content": str, "result": dict|None}
-        "kb_loaded": False,       # has GFG knowledge been ingested?
-        "uploaded_files": [],     # list of processed file names
-        "eli15": False,
-        "show_mistakes": False,
-        "use_only_user_docs": False,
-        "selected_unit": "Auto-detect",
-        "last_result": None,
-        "fast_mode": False,       # skip visualizer + quiz + critic for speed
-        "pending_prompt": None,   # prompt chip click passthrough
+        "messages":            [],
+        "kb_loaded":           False,
+        "uploaded_files":      [],
+        "eli15":               False,
+        "show_mistakes":       False,
+        "use_only_user_docs":  False,
+        "selected_unit":       "Auto-detect",
+        "last_result":         None,
+        "fast_mode":           False,
+        "pending_prompt":      None,
+        "voice_mode":          False,
+        # Stable user_id per browser session for Mem0
+        "user_id":             str(uuid.uuid4()),
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -77,31 +87,41 @@ _init_state()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Rendering helpers (defined before use)
+# Rendering helpers
 # ══════════════════════════════════════════════════════════════════════════════
 def render_result(result: dict):
     """Render a full orchestrator result dict into tabs."""
-    syllabus_info = result.get("syllabus_info", {})
-    citations     = result.get("citations", [])
-    explanation   = result.get("explanation", "")
-    visual        = result.get("visual", {})
-    solution      = result.get("solution", "")
-    quiz          = result.get("quiz", {})
-    review        = result.get("review", {})
-    error         = result.get("error")
+    syllabus_info     = result.get("syllabus_info", {})
+    citations         = result.get("citations", [])
+    book_citations    = result.get("book_citations", [])
+    explanation       = result.get("explanation", "")
+    visual            = result.get("visual", {})
+    solution          = result.get("solution", "")
+    quiz              = result.get("quiz", {})
+    review            = result.get("review", {})
+    voice_response    = result.get("voice_response")
+    memory_context    = result.get("memory_context", "")
+    ingestion_results = result.get("ingestion_results", [])
+    total_chunks      = result.get("total_chunks_indexed", 0)
+    error             = result.get("error")
 
-    if error:
+    if error and not explanation:
         st.error(f"Pipeline error: {error}")
         return
 
-    # Unit + topic badge
+    # Metadata row
     render_bot_intro(syllabus_info)
-    # Citations
-    render_citations(citations)
-    # Quality gate badge
+    render_citations(citations, book_citations)
+    render_memory_indicator(memory_context)
     render_quality_badge(review)
 
-    # ── Response Tabs ────────────────────────────────────────────────────────
+    # Ingestion results (if files were processed this turn)
+    render_ingestion_results(ingestion_results, total_chunks)
+
+    # Voice response (if Voiceflow active)
+    render_voice_response(voice_response)
+
+    # ── Response Tabs ─────────────────────────────────────────────────────────
     tabs = st.tabs(["📖 Explanation", "📊 Diagram", "🔢 Step-by-Step", "🧪 Quiz"])
 
     with tabs[0]:
@@ -141,40 +161,55 @@ with st.sidebar:
         )
         st.stop()
 
-    # ── File Upload ───────────────────────────────────────────────────────────
+    # ── File Upload (extended formats) ────────────────────────────────────────
     st.markdown("### 📁 Upload Study Materials")
     uploaded = st.file_uploader(
-        "PDFs, PPTs, or text files",
-        type=["pdf", "pptx", "ppt", "txt"],
+        "PDFs, DOCX, XLSX, CSV, MD or TXT files",
+        type=["pdf", "pptx", "ppt", "txt", "md", "docx", "xlsx", "csv"],
         accept_multiple_files=True,
-        help="Upload lecture notes, textbook chapters, or slides.",
+        help="Upload lecture notes, textbook chapters, spreadsheets, or slides.",
         label_visibility="collapsed",
     )
 
+    # Is-book toggle for textbook ingestion into separate collection
+    is_book_upload = st.toggle(
+        "📚 Treat as textbook (book collection)",
+        value=False,
+        help="ON = indexed into the books collection (cited with priority). OFF = regular notes.",
+    )
+
     if uploaded:
-        docs_dir = Path("./data/uploaded_docs")
-        docs_dir.mkdir(parents=True, exist_ok=True)
-        new_files = []
+        new_files_data = []
         for uf in uploaded:
             if uf.name not in st.session_state.uploaded_files:
-                save_path = docs_dir / uf.name
-                save_path.write_bytes(uf.getvalue())
-                new_files.append(save_path)
+                new_files_data.append({
+                    "filename": uf.name,
+                    "data":     uf.getvalue(),
+                    "is_book":  is_book_upload,
+                })
                 st.session_state.uploaded_files.append(uf.name)
 
-        if new_files:
-            with st.spinner(f"Indexing {len(new_files)} file(s)…"):
-                from rag.document_loader import load_uploaded_file
-                from rag.vector_store import add_documents, build_or_load
-                build_or_load()
+        if new_files_data:
+            with st.spinner(f"Indexing {len(new_files_data)} file(s)…"):
+                from agents.ingestion_agent import ingest_file
                 total_chunks = 0
-                for fp in new_files:
-                    docs = load_uploaded_file(fp)
-                    total_chunks += add_documents(docs)
-            st.success(f"✅ {len(new_files)} file(s) → {total_chunks} chunks indexed")
+                results = []
+                for item in new_files_data:
+                    chunks, err = ingest_file(
+                        item["filename"], item["data"], is_book=item["is_book"]
+                    )
+                    total_chunks += chunks
+                    results.append({"filename": item["filename"], "chunks": chunks, "error": err})
+
+                for r in results:
+                    if r["error"]:
+                        st.warning(f"⚠️ {r['filename']}: {r['error']}")
+                    else:
+                        kind = "📚 book" if is_book_upload else "📄 notes"
+                        st.success(f"✅ {r['filename']} → {r['chunks']} chunks ({kind})")
 
     if st.session_state.uploaded_files:
-        st.caption("📄 " + " · ".join(st.session_state.uploaded_files))
+        st.caption("📄 " + " · ".join(st.session_state.uploaded_files[-5:]))
 
     st.divider()
 
@@ -236,6 +271,25 @@ with st.sidebar:
 
     st.divider()
 
+    # ── Voice Mode ────────────────────────────────────────────────────────────
+    st.markdown("### 🎙️ Voice (Voiceflow)")
+    voice_configured = bool(
+        os.getenv("VOICEFLOW_API_KEY", "").strip() and
+        os.getenv("VOICEFLOW_PROJECT_ID", "").strip()
+    )
+    if voice_configured:
+        st.session_state.voice_mode = st.toggle(
+            "Enable Voiceflow agent",
+            value=st.session_state.voice_mode,
+            help="Routes query through your Voiceflow project.",
+        )
+        if st.session_state.voice_mode:
+            st.caption('<span class="voice-chip">🎙️ Voice Active</span>', unsafe_allow_html=True)
+    else:
+        st.caption("🔇 Voiceflow not configured. Add `VOICEFLOW_API_KEY` + `VOICEFLOW_PROJECT_ID` to `.env`.")
+
+    st.divider()
+
     # ── Speed / Pipeline ──────────────────────────────────────────────────────
     st.markdown("### ⚡ Pipeline Speed")
     fast_mode = st.toggle(
@@ -255,7 +309,17 @@ with st.sidebar:
             unsafe_allow_html=True,
         )
 
+    st.divider()
 
+    # ── Mem0 Memory ───────────────────────────────────────────────────────────
+    st.markdown("### 🧠 Memory (Mem0)")
+    mem0_configured = bool(os.getenv("MEM0_API_KEY", "").strip())
+    if mem0_configured:
+        st.caption(f'<span class="memory-chip">🧠 Mem0 Active</span> user: `{st.session_state.user_id[:8]}…`', unsafe_allow_html=True)
+    else:
+        st.caption("💾 Local session only. Add `MEM0_API_KEY` to `.env` for cross-session memory.")
+
+    st.divider()
 
     # ── Utilities ─────────────────────────────────────────────────────────────
     st.markdown("### 🛠️ Tools")
@@ -309,11 +373,14 @@ if not st.session_state.messages:
     )
     st.markdown(f"""
     <div style="text-align:center;padding:3rem 1rem 2rem;color:#64748b;">
-        <div style="font-size:3.5rem;margin-bottom:1rem;filter:drop-shadow(0 0 12px rgba(99,102,241,0.5));">⚙️</div>
+        <div style="font-size:3.5rem;margin-bottom:1rem;filter:drop-shadow(0 0 16px rgba(34,197,94,0.5));">⚙️</div>
         <h3 style="color:#94a3b8;font-weight:500;margin-bottom:0.5rem;">Welcome to ACD Mentor!</h3>
-        <p style="font-size:0.9rem;max-width:540px;margin:0 auto;line-height:1.75;color:#64748b;">
-            Your AI-powered tutor for <strong style="color:#a5b4fc;">Automata Theory</strong> and
+        <p style="font-size:0.9rem;max-width:560px;margin:0 auto;line-height:1.75;color:#64748b;">
+            Your AI-powered tutor for <strong style="color:#4ade80;">Automata Theory</strong> and
             <strong style="color:#7dd3fc;">Compiler Design</strong>.<br>
+            Now with <strong style="color:#c4b5fd;">Mem0 memory</strong>,
+            <strong style="color:#7dd3fc;">Voiceflow voice</strong>, and
+            <strong style="color:#fcd34d;">book knowledge sources</strong>.<br>
             Click a prompt below to copy it, then paste it in the chat.
         </p>
         <div style="margin-top:1.75rem;display:flex;justify-content:center;gap:0.75rem;flex-wrap:wrap;">
@@ -333,29 +400,23 @@ if not st.session_state.messages:
     </div>
     """, unsafe_allow_html=True)
 
-# ── Keyboard shortcut JS injection ────────────────────────────────────────────
+# ── Keyboard shortcut JS ──────────────────────────────────────────────────────
 st.components.v1.html("""
 <script>
 (function(){
   function getInput(){
     return document.querySelector('[data-testid="stChatInput"] textarea');
   }
-  var history = [];
   var histIdx = -1;
-
   document.addEventListener('keydown', function(e){
     var inp = getInput();
     if(!inp) return;
-
-    // Ctrl+Enter — submit
     if(e.ctrlKey && e.key === 'Enter'){
       e.preventDefault();
       var btn = document.querySelector('[data-testid="stChatInput"] button');
       if(btn) btn.click();
       return;
     }
-
-    // Esc — clear input
     if(e.key === 'Escape' && document.activeElement === inp){
       e.preventDefault();
       var nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value').set;
@@ -364,30 +425,25 @@ st.components.v1.html("""
       histIdx = -1;
       return;
     }
-
-    // Arrow Up / Down — navigate history
     if(document.activeElement === inp){
+      var userMsgs = Array.from(document.querySelectorAll('[data-testid="stChatMessage"]'))
+        .filter(m => m.querySelector('[aria-label="user avatar"]'))
+        .map(m => m.querySelector('p') ? m.querySelector('p').innerText : '');
       if(e.key === 'ArrowUp'){
-        var userMsgs = Array.from(document.querySelectorAll('[data-testid="stChatMessage"]'))
-          .filter(m => m.querySelector('[aria-label="user avatar"]'))
-          .map(m => m.querySelector('p') ? m.querySelector('p').innerText : '');
         if(userMsgs.length && histIdx < userMsgs.length - 1){
           histIdx++;
           var val = userMsgs[userMsgs.length - 1 - histIdx];
-          var nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value').set;
-          nativeSetter.call(inp, val);
+          var ns = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value').set;
+          ns.call(inp, val);
           inp.dispatchEvent(new Event('input', {bubbles:true}));
           setTimeout(()=>{ inp.setSelectionRange(val.length,val.length); },0);
           e.preventDefault();
         }
       } else if(e.key === 'ArrowDown' && histIdx > 0){
         histIdx--;
-        var userMsgs2 = Array.from(document.querySelectorAll('[data-testid="stChatMessage"]'))
-          .filter(m => m.querySelector('[aria-label="user avatar"]'))
-          .map(m => m.querySelector('p') ? m.querySelector('p').innerText : '');
-        var val2 = userMsgs2[userMsgs2.length - 1 - histIdx] || '';
-        var nativeSetter2 = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value').set;
-        nativeSetter2.call(inp, val2);
+        var val2 = userMsgs[userMsgs.length - 1 - histIdx] || '';
+        var ns2 = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value').set;
+        ns2.call(inp, val2);
         inp.dispatchEvent(new Event('input', {bubbles:true}));
         e.preventDefault();
       }
@@ -410,13 +466,11 @@ for msg in st.session_state.messages:
 # ── Chat Input ────────────────────────────────────────────────────────────────
 if prompt := st.chat_input("Ask anything about Automata & Compiler Design…"):
 
-    # Append + display user message
     st.session_state.messages.append({"role": "user", "content": prompt, "result": None})
     with st.chat_message("user", avatar="🎓"):
         st.markdown(prompt)
 
-    # ── Determine pipeline flags from fast_mode ───────────────────────────────
-    fast = st.session_state.fast_mode
+    fast       = st.session_state.fast_mode
     run_viz    = not fast
     run_solver = not fast
     run_quiz   = not fast
@@ -424,29 +478,29 @@ if prompt := st.chat_input("Ask anything about Automata & Compiler Design…"):
 
     if fast:
         steps = [
-            ("🗺️", "Mapping query to ACD syllabus"),
+            ("🧠", "Recalling memory (Mem0)"),
+            ("🗺️", "Routing + mapping to ACD syllabus"),
             ("🔍", "Hybrid RAG retrieval"),
             ("🤖", "Explainer agent (fast mode)"),
         ]
     else:
         steps = [
-            ("🗺️", "Mapping query to ACD syllabus"),
-            ("🔍", "Hybrid RAG retrieval (dense + BM25 + RRF)"),
-            ("🤖", "Running agents in parallel — Explainer, Visualizer, Solver, Quiz"),
+            ("🧠", "Recalling memory (Mem0)"),
+            ("🗺️", "Routing + mapping to ACD syllabus"),
+            ("🔍", "Hybrid RAG retrieval (notes + books)"),
+            ("🤖", "Running agents — Explainer, Visualizer, Solver, Quiz"),
             ("✅", "Quality review (Critic)"),
+            ("🎙️", "Voice agent (optional)"),
         ]
 
-    # ── Run multi-agent pipeline ──────────────────────────────────────────────
     with st.chat_message("assistant", avatar="🤖"):
         mode_label = "⚡ Fast Mode" if fast else "✦ Full Pipeline"
         status = st.status(f"🤖 {mode_label} — processing…", expanded=True)
 
-        # Render pipeline steps in status
         for emoji, label in steps:
             status.write(f"{emoji} {label}…")
 
         try:
-            # Ensure vector store is initialised (cached after first run)
             from rag.vector_store import build_or_load
             build_or_load()
 
@@ -455,45 +509,54 @@ if prompt := st.chat_input("Ask anything about Automata & Compiler Design…"):
             t0 = time.time()
 
             result = run_pipeline(
-                query=prompt,
-                use_only_user_docs=st.session_state.use_only_user_docs,
-                eli15=st.session_state.eli15,
-                show_mistakes=st.session_state.show_mistakes,
-                run_visualizer=run_viz,
-                run_solver=run_solver,
-                run_quiz=run_quiz,
-                run_critic=run_critic,
+                query              = prompt,
+                user_id            = st.session_state.user_id,
+                use_only_user_docs = st.session_state.use_only_user_docs,
+                eli15              = st.session_state.eli15,
+                show_mistakes      = st.session_state.show_mistakes,
+                run_visualizer     = run_viz,
+                run_solver         = run_solver,
+                run_quiz           = run_quiz,
+                run_critic         = run_critic,
+                voice_mode         = st.session_state.voice_mode,
             )
 
             elapsed = time.time() - t0
             status.update(
-                label=f"✅ Done in {elapsed:.1f}s!",
-                state="complete",
-                expanded=False,
+                label    = f"✅ Done in {elapsed:.1f}s!",
+                state    = "complete",
+                expanded = False,
             )
 
-            # Update progress tracker
             si = result.get("syllabus_info", {})
             if si.get("unit") and si.get("topic"):
                 mark_topic(si["unit"], si["topic"])
 
-            # Show elapsed chip before result
+            mem_chip = ""
+            if result.get("memory_context"):
+                mem_chip = ' <span class="memory-chip">🧠 Memory</span>'
+            voice_chip = ""
+            if result.get("voice_response"):
+                voice_chip = ' <span class="voice-chip">🎙️ Voice</span>'
+            book_chip = ""
+            if result.get("book_citations"):
+                book_chip = f' <span class="book-citation">📚 {len(result["book_citations"])} book src</span>'
+
             st.markdown(
                 f'<span class="elapsed-chip">⏱ {elapsed:.1f}s</span>'
                 + (f' <span class="mode-chip fast">⚡ Fast</span>' if fast else
-                   f' <span class="mode-chip full">✦ Full</span>'),
+                   f' <span class="mode-chip full">✦ Full</span>')
+                + mem_chip + voice_chip + book_chip,
                 unsafe_allow_html=True,
             )
 
-            # Render result
             render_result(result)
 
-            # Save to session
             explanation_preview = result.get("explanation", "")
             st.session_state.messages.append({
-                "role": "assistant",
+                "role":    "assistant",
                 "content": explanation_preview[:400] + "…" if len(explanation_preview) > 400 else explanation_preview,
-                "result": result,
+                "result":  result,
             })
             st.session_state.last_result = result
 
@@ -503,8 +566,7 @@ if prompt := st.chat_input("Ask anything about Automata & Compiler Design…"):
             st.error(err_msg)
             st.exception(exc)
             st.session_state.messages.append({
-                "role": "assistant",
+                "role":    "assistant",
                 "content": err_msg,
-                "result": None,
+                "result":  None,
             })
-

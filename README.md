@@ -1,137 +1,188 @@
-# ACD Mentor 🎓
+# ACD Mentor v2 — Multi-Agent RAG Tutor
 
-A **multi-agent RAG-powered** Streamlit web application for mastering **Automata and Compiler Design (ACD)**. Built with LangChain, LangGraph, ChromaDB, Groq, and custom CSS.
-
----
-
-## 📁 Project Structure
-
-```
-acd_mentor/
-├── app.py                      ← Main Streamlit entry point
-├── requirements.txt
-├── .env.example                ← Copy to .env and add your keys
-├── .gitignore
-│
-├── agents/
-│   ├── __init__.py
-│   ├── orchestrator.py         ← LangGraph orchestration pipeline
-│   ├── syllabus_mapper.py      ← Maps queries to unit + topic
-│   ├── explainer.py            ← Simple, analogy-rich explanations
-│   ├── visualizer.py           ← Mermaid / ASCII diagrams
-│   ├── problem_solver.py       ← Step-by-step problem solutions
-│   ├── quiz_master.py          ← MCQ + short-answer generator
-│   └── critic.py               ← Quality gate / accuracy checker
-│
-├── rag/
-│   ├── __init__.py
-│   ├── document_loader.py      ← PDF + PPT ingestion
-│   ├── embedder.py             ← Chunking + embedding pipeline
-│   ├── vector_store.py         ← Chroma / FAISS wrapper
-│   └── retriever.py            ← Hybrid retrieval (docs + web)
-│
-├── knowledge/
-│   ├── __init__.py
-│   ├── gfg_scraper.py          ← GeeksforGeeks ACD topic fetcher
-│   └── curated_topics.py       ← Hardcoded GFG URLs + fallback blurbs
-│
-├── utils/
-│   ├── __init__.py
-│   ├── config.py               ← Env loading + settings
-│   ├── llm_factory.py          ← LLM provider switcher
-│   ├── pdf_exporter.py         ← Download notes as PDF
-│   └── progress_tracker.py     ← Student progress state
-│
-├── ui/
-│   ├── styles.css              ← Custom CSS (dark + light)
-│   └── components.py           ← Reusable Streamlit UI helpers
-│
-└── data/                       ← Auto-created at runtime
-    ├── chroma_db/
-    ├── faiss_index/
-    └── uploaded_docs/
-```
+> AI-powered tutor for **Automata Theory & Compiler Design** (5 Units).  
+> Built on **LangGraph** · **ChromaDB** · **Mem0** · **Voiceflow** · **Streamlit**
 
 ---
 
-## 🚀 Quick Start (Local)
+## What's New in v2
+
+| Feature | Details |
+|---|---|
+| **MemoryAgent** | Mem0 SDK — persists facts/topics across browser sessions per user |
+| **IngestionAgent** | Multi-format: `.pdf .docx .xlsx .csv .md .txt` |
+| **Book Collection** | Textbooks indexed into separate `acd_books` ChromaDB collection, cited with priority |
+| **VoiceAgent** | Optional Voiceflow hand-off for voice I/O |
+| **RouterAgent** | Intent classification (explain / solve / quiz / visualise / ingest) + syllabus mapping |
+| **KnowledgeAgent** | Merged RAG from notes + books with RRF fusion |
+| **Space Black Theme** | `~90% #000000` background, deep-green accents, white star twinkle |
+
+---
+
+## Multi-Agent Graph
+
+```
+MemoryAgent  ──→  RouterAgent  ──→  IngestionAgent (if files)
+                      │
+                  KnowledgeAgent  (RAG notes + books)
+                      │
+              ┌───────┴───────────────────┐
+          Explainer  Visualizer  Solver  QuizMaster   (parallel)
+              └───────┬───────────────────┘
+                  CriticAgent  (quality gate)
+                      │
+                  VoiceAgent   (optional Voiceflow)
+                      │
+                     END
+```
+
+### Node Descriptions
+
+| Node | File | Role |
+|---|---|---|
+| `MemoryAgent` | `agents/memory_agent.py` | Search + store user memories via Mem0 |
+| `RouterAgent` | `agents/orchestrator.py` | Classify intent; delegate to SyllabusMapper |
+| `IngestionAgent` | `agents/ingestion_agent.py` | Parse + chunk + embed multi-format files |
+| `KnowledgeAgent` | `agents/orchestrator.py` | Hybrid RAG (notes + books, BM25 + dense + RRF) |
+| `TutorAgent` (parallel) | `agents/explainer.py` + others | Explanation, diagram, step-by-step, quiz |
+| `CriticAgent` | `agents/critic.py` | Verify symbols, equations, correctness |
+| `VoiceAgent` | `agents/voice_agent.py` | Voiceflow REST Interact API hand-off |
+
+---
+
+## Setup
 
 ### 1. Clone & install
 
 ```bash
-git clone https://github.com/<you>/acd-mentor.git
-cd acd-mentor
-python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# macOS / Linux:
-source .venv/bin/activate
-
+git clone <repo>
+cd ACD-subject-agent
 pip install -r requirements.txt
 ```
 
-### 2. Configure API keys
+### 2. Configure `.env`
 
 ```bash
 cp .env.example .env
-# Edit .env and add your GROQ_API_KEY (or OPENAI_API_KEY)
+# Edit .env and fill in your keys
 ```
 
-Or, for Streamlit Cloud, add keys in **Settings → Secrets** as TOML:
+Required keys:
+- `GROQ_API_KEY` **or** `OPENAI_API_KEY` (at least one)
 
-```toml
-GROQ_API_KEY = "gsk_..."
-LLM_PROVIDER = "groq"
-```
+Optional keys (features degrade gracefully without them):
+- `MEM0_API_KEY` — cross-session memory ([get free key](https://app.mem0.ai/))
+- `VOICEFLOW_API_KEY` + `VOICEFLOW_PROJECT_ID` — voice mode
 
 ### 3. Run
 
 ```bash
+# Streamlit frontend
 streamlit run app.py
+
+# FastAPI backend (separate terminal)
+uvicorn api:app --port 8000 --reload
 ```
 
-Visit `http://localhost:8501`
+---
+
+## Free-Tier LLM Configuration
+
+To minimise token costs, set in `.env`:
+
+```env
+LLM_PROVIDER=groq
+GROQ_MODEL=llama-3.1-8b-instant   # free tier
+# Fallback (auto-used on rate-limit):
+OPENAI_MODEL=gpt-4o-mini
+```
 
 ---
 
-## ☁️ Deploy to Streamlit Cloud
+## File Upload & Book Ingestion
 
-1. Push this repo to GitHub (make sure `.env` is in `.gitignore`).
-2. Go to [share.streamlit.io](https://share.streamlit.io) → **New app**.
-3. Select your repo + `app.py` as entry point.
-4. Under **Advanced settings → Secrets**, paste your `.env` keys in TOML format.
-5. Click **Deploy** — done!
+### Supported formats
+`.pdf` · `.docx` · `.xlsx` · `.csv` · `.md` · `.txt` · `.pptx`
 
----
+### Using the sidebar uploader
+1. Click **Upload Study Materials** in the sidebar
+2. Toggle **"Treat as textbook"** ON for textbook PDFs
+3. Files are parsed, chunked, and embedded automatically
+4. Textbooks go into `acd_books` collection — answers cite them preferentially
 
-## 🔑 Supported LLM Providers
+### Indexing books via CLI (optional)
 
-| Provider | Model | How to get key |
-|----------|-------|----------------|
-| **Groq** (recommended — free & fast) | `llama-3.3-70b-versatile` | [console.groq.com](https://console.groq.com) |
-| OpenAI | `gpt-4o-mini` | [platform.openai.com](https://platform.openai.com) |
+```python
+from agents.ingestion_agent import ingest_file
 
-Set `LLM_PROVIDER=groq` or `LLM_PROVIDER=openai` in `.env`.
-
----
-
-## 🤖 Agents
-
-| Agent | Role |
-|-------|------|
-| **Syllabus Mapper** | Routes query to the correct ACD unit & topic |
-| **Explainer** | Analogy-rich, beginner-friendly explanations |
-| **Visualizer** | Mermaid diagrams, conversion tables, parse trees |
-| **Problem Solver** | Step-by-step worked solutions |
-| **Quiz Master** | MCQs + short-answer questions with explanations |
-| **Critic** | Quality gate — checks accuracy & completeness |
+with open("automata_sipser.pdf", "rb") as f:
+    chunks, err = ingest_file("automata_sipser.pdf", f.read(), is_book=True)
+print(f"Indexed {chunks} chunks")
+```
 
 ---
 
-## 📚 Syllabus Coverage
+## API (backward-compatible)
 
-- **Unit I**: Formal Languages, RE, DFA, NFA, conversions, Pumping Lemma, Lex
-- **Unit II**: Compiler phases, Lexical Analysis, CFG, Parse Trees, LL(1), LR, LALR, YACC
-- **Unit III**: SDT, S/L-attributed grammars, Intermediate Code, AST
-- **Unit IV**: Runtime Environments, Storage, Code Optimization, Peephole, Flow Graphs
-- **Unit V**: Code Generation, Register Allocation, DAG
+`POST http://localhost:8000/ask`
+
+```json
+{
+  "query": "Convert (a|b)*abb NFA to DFA",
+  "user_id": "student_42",
+  "eli15": false,
+  "fast_mode": false
+}
+```
+
+Response includes: `explanation`, `visual`, `solution`, `quiz`, `review`, `citations`, `book_citations`, `memory_context`, `voice_response`.
+
+---
+
+## Project Structure
+
+```
+ACD-subject-agent/
+├── app.py                     # Streamlit UI (updated)
+├── api.py                     # FastAPI backend
+├── agents/
+│   ├── orchestrator.py        # LangGraph StateGraph (7 nodes) ← updated
+│   ├── memory_agent.py        # Mem0 ← NEW
+│   ├── ingestion_agent.py     # Multi-format ingest ← NEW
+│   ├── voice_agent.py         # Voiceflow ← NEW
+│   ├── critic.py              # Quality gate
+│   ├── explainer.py           # Core ACD explanation
+│   ├── visualizer.py          # Diagrams / tables
+│   ├── problem_solver.py      # Step-by-step solutions
+│   ├── quiz_master.py         # MCQ + short answers
+│   └── syllabus_mapper.py     # Unit / topic classification
+├── rag/
+│   ├── retriever.py           # Hybrid RAG (dense + BM25 + RRF)
+│   ├── vector_store.py        # ChromaDB wrapper
+│   ├── embedder.py            # Sentence-transformers
+│   └── document_loader.py     # PDF / PPTX / text loaders
+├── ui/
+│   ├── components.py          # Streamlit helpers ← updated
+│   └── styles.css             # Space-black theme ← updated
+├── utils/
+│   ├── config.py
+│   ├── progress_tracker.py
+│   └── pdf_exporter.py
+├── data/
+│   ├── chroma_db/             # Main vector store
+│   ├── books/                 # Saved textbook files
+│   └── uploaded_docs/         # Saved note files
+├── .env.example               # ← updated with Mem0 + Voiceflow keys
+└── requirements.txt           # ← updated (mem0ai, python-docx, openpyxl)
+```
+
+---
+
+## Content Quality Rules
+
+All agents follow strict ACD content guidelines:
+- ✅ Correct mathematical symbols and LaTeX/KaTeX equations
+- ✅ Step-by-step indented explanations with clear hierarchy
+- ✅ ASCII state-transition visualizations where applicable
+- ✅ Transition tables with proper notation (δ, Σ, Q, q₀, F)
+- ❌ Never invents wrong symbols or equations (enforced by CriticAgent)

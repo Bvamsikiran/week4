@@ -1,4 +1,4 @@
-# ACD Mentor - Requirements
+# ACD Mentor - Requirements  (v2)
 # Install with: pip install -r requirements.txt
 
 # Core Streamlit
@@ -15,21 +15,23 @@ langgraph>=0.1.0
 chromadb>=0.5.0
 faiss-cpu>=1.8.0
 
-# Document loaders
+# Document loaders (expanded)
 PyPDF2>=3.0.0
 python-pptx>=0.6.23
+python-docx>=1.1.0      # .docx support
+openpyxl>=3.1.0         # .xlsx support
 unstructured>=0.14.0
 
 # Embeddings
 sentence-transformers>=3.0.0
 
-# HTTP requests (for GeeksforGeeks scraping)
+# HTTP requests (for GeeksforGeeks scraping + Voiceflow)
 requests>=2.31.0
 beautifulsoup4>=4.12.0
 
-# LLM Providers
-groq>=0.9.0
-openai>=1.30.0
+# LLM Providers (free-tier preferred)
+groq>=0.9.0             # llama-3.1-8b-instant (free tier)
+openai>=1.30.0          # gpt-4o-mini fallback
 
 # PDF generation (for download notes)
 reportlab>=4.0.0
@@ -49,6 +51,9 @@ rank-bm25>=0.2.2
 
 # Web search fallback
 duckduckgo-search>=6.0.0
+
+# Mem0 memory agent
+mem0ai>=0.1.0
 
 # Fix for Streamlit Cloud transformers bug
 torchvision>=0.16.0
